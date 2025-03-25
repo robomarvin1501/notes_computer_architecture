@@ -12,6 +12,7 @@
 \usepackage{booktabs}
 \usepackage{float}
 \usepackage{bbm}
+\usepackage{wrapfig}
 \graphicspath{ {./images/} }
 \usepackage[bottom=0.5cm, right=1.5cm, left=1.5cm, top=1.5cm]{geometry}
 
@@ -102,12 +103,15 @@ meaning that there are extra holes. N-type has added phosphorous, which is an
 electron donor, and increases the number of free electron in the substance. \\
 If we connect together p-type and n-type, we can create a PN junction, which
 conducts in one direction, and blocks current in the other direction, which we
-call a \textbf{diode}. % TODO direction of blocking and allowing
+call a \textbf{diode}. Electron flow will occur from the n-type to the p-type,
+meaning conventional current will flow from the p-type to the n-type.
 % section Semiconductors (end)
 
 \section{MOS-FET transistor structure and operation}\label{sec:MOS-FET transistor structure and operation} % (fold)
 MOS-FET = Metal Oxide Semiconductor - Field Effect Transistor. \\
-% TODO add some images from the presentation
+\begin{wrapfigure}{l}{0.3\textwidth}
+    \includegraphics[width=\linewidth]{lecture_1_nmos}
+\end{wrapfigure}
 Contains the terminals Source, Drain, and Gate. They are constructed from an
 insulator, and two NP junctions, and a capacitor which is the gate body. There
 are two variates, N-Channel (NMOS), and P-Channel (PMOS). \\
@@ -115,7 +119,7 @@ When considering transistors, there are a few parts to consider. L is the length
 of the channel / gap between the source and gate. W is the width of the
 transistor (along the source/gate), and Lox is the oxide thinness, which impacts
 the gate capacitance. \\
-NMOS is sued as a voltage controlled switch. The gate controls whether current
+NMOS is used as a voltage controlled switch. The gate controls whether current
 can flow between the source and the drain. When the gate reads $0$, we have two
 charged NP junctions, and thus current cannot flow between S and D. When the
 gate reads $1$, then there is an N like channel between S and D, and the current
