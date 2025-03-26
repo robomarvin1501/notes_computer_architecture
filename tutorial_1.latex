@@ -1,0 +1,206 @@
+\documentclass{article}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{mathtools}
+\usepackage{blindtext}
+\usepackage{multicol}
+\usepackage{graphicx}
+\usepackage{placeins}
+\usepackage{algpseudocode}
+\usepackage{algorithm}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{bbm}
+\graphicspath{ {./images/} }
+\usepackage[bottom=0.5cm, right=1.5cm, left=1.5cm, top=1.5cm]{geometry}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{exercise}{Exercise}
+\newtheorem{example}{Example}
+\newtheorem{definition}{Definition}[section]
+
+\newcommand{\R}{\ensuremath{\mathbb{R}}}
+\newcommand{\N}{\ensuremath{\mathbb{N}}}
+\newcommand{\Z}{\ensuremath{\mathbb{Z}}}
+\newcommand{\p}{\ensuremath{\mathbb{P}}}
+\newcommand{\E}{\ensuremath{\mathbb{E}}}
+\newcommand{\F}{\ensuremath{\mathcal{F}}}
+\newcommand{\1}{\ensuremath{\mathbbm{1}}}
+\newcommand{\B}{\ensuremath{\mathbbm{B}}}
+
+\title{Tutorial 1}
+\author{Gidon Rosalki}
+\date{2025-03-26}
+
+
+\begin{document}
+\maketitle
+\section{Counting systems}\label{sec:Counting systems} % (fold)
+We like base 10, which looks like 78396, computers use base 2, which is more
+1101000010, and the Romans used letters MMCCCCXXI. These are all methods of
+representing amounts. A \textbf{base} is a method of representing numbers based
+of multiples of that number. The common method today is base 10, which contains
+the numbers $0$ to $9$, and each in a number represents that value multiplied by
+the relevant power of 10. For example \[
+    \left(5783.2\right)_{10} = 5 \times 10^3 + 7 \times 10^2 + 8 \times 10^1 + 3
+    \times 10^0 + 2 \times 10^{-1}
+\]
+This can be generalised to many numbers, not just 10, with $n$ digits. \\
+Computer like base 2 since that is easy to represent using electricity, since 0
+and 1 can be represented by simply if there is or is not electricity. \\
+To represent a number in base $r$, let there be $r \geq 2 \in \N$, then a number
+in base $r$ is of the style: \[
+    a_na_{n-1}\dots a_{1} a_0 . a_{-1} \dots a_{-m}
+\]
+where $\forall j\ a_j \in \left\{0, 1, \dots, r - 1\right\}$. Its value is
+defined as \[
+    \displaystyle\sum_{i = -m}^{n}a_i r^{i}
+\]
+
+\subsection{Arithmetic operations}\label{sub:Arithmetic operations} % (fold)
+Just because we are in a different base, does not mean that our arithmetic
+operations have changed any. You must simply be working in the new base for all
+the operations that you may wish to carry out.
+% subsection Arithmetic operations (end)
+
+% section Counting systems (end)
+
+\section{Moving between numerical bases}\label{sec:Moving between numerical bases} % (fold)
+To move to base 10, we have a simple algorithm: \\
+\textbf{Input}: A number in some base $\left( a_n \dots a_{-m}\right)_r$  \\
+\textbf{Output:} The value representation in base $10$: $\displaystyle\sum_{i =
+-m}^{n}a_i r^i$ \\
+Example: $\left(253.1\right)_6 = 2 \cdot 6^2 + 5 \cdot 6^1 + 1 \cdot 6^0 + 1
+\cdot 6^{-1} = \left(105.167\right)_{10}$ \\
+% \usepackage{algorithm,algorithmicx,algpseudocode}
+\begin{algorithm}
+    \floatname{algorithm}{Change base}
+    \algrenewcommand\algorithmicrequire{\textbf{A number in some base}}
+    \algrenewcommand\algorithmicensure{\textbf{Value representation in base 10}}
+    \caption{}\label{alg:}
+    \begin{algorithmic}[1]
+        \Require $input$
+        \Ensure $output$
+        \State $i \gets 0$
+        \While{$N > 0$}
+            \State $a_i \gets N \mod r$
+            \State $N \gets \left\lfloor \displaystyle\frac{N}{r} \right\rfloor $
+            \State $i \gets i + 1$
+        \EndWhile
+    \end{algorithmic}
+\end{algorithm}
+
+We can also use similar algorithms to transfer from base 10. We will now prove
+correctness for this algorithm. Let us assume that the representation of the
+number $N$ according to base $r$ is \begin{align*}
+    N &= a_n r^n + \dots a_0 r^0 \\
+      &= a_n r^n + \dots a_0 \\
+      &= r \left(a_n r^{n - 1} + \dots + a_1\right) + a_0 \\
+\end{align*}
+So dividing by $r$ gives us $a_n r^{n - 1} + \dots + a_1$ with a remainder of
+$a_0$. After $k$ steps we get the same concept with a remainder of $a_k$, so
+that may be our inductive step, so a proper inductive proof would generate the
+required statement that the algorithm is correct.
+
+This algorithm works for moving from base $a$ to base $b$, but you will probably
+get confused doing that, so it is instead recommended to go from $a$ to 10, and
+then from 10 to $b$. \\
+A thing to note is that bases that are the powers of 2 split apart into base 2
+numbers incredibly nicely, for example in base 16, each number represents 4
+binary numbers in the binary representation. This comes from the laws of
+logarithms: \[
+    \log_b \left(n\right) \cdot \log_c \left(b\right) = \log_c \left(n\right)
+\]
+
+\section{Representation of negative numbers in base 2}\label{sec:Representation of negative numbers in base 2} % (fold)
+We need the following: To represent negative numbers, and to simplify
+mathematical operations as much as possible. We will look at today sign and
+magnitude representation, twos complement, and ones complement.
+
+\subsection{Size and magnitude}\label{sub:Size and magnitude} % (fold)
+The $n - 1$ number represents the sign: $0$ is positive, $1$ is negative. The
+rest of the numbers are the value, as we saw at the start \[
+    N = \left(-1\right)^{a_{n - 1}}\displaystyle\sum_{i = 0}^{n - 2}a_i 2^i
+\]
+For example: \begin{itemize}
+    \item $01001 = \left(-1\right)^0 \cdot \left(2^3 + 2^0\right) = 9$
+    \item $11101 = \left(-1\right)^1 \cdot \left(2^3 + 2^2 + 2^0\right) = -13$
+    \item $00000 = 0$
+    \item $10000 = 0$
+\end{itemize}
+
+Using $n$ bits this can represent all the numbers from $- \left(2^{n - 1} -
+1\right)$ to $\left(2^{n - 1} - 1\right)$. This is very readable, easy to use,
+but arithmetic operations are very complex, and there are two ways to represent
+0.
+% subsection Size and magnitude (end)
+
+\subsection{One's complement}\label{sub:One's complement} % (fold)
+\[
+    N = -a_{n - 1} \left(2^{n - 1} - 1\right) + \displaystyle\sum_{i = 0}^{n -
+    2}a_i2^i
+\]
+Examples: \begin{itemize}
+    \item $01001 = -0 \cdot \left(2^4 - 1\right) + \left(2^3 + 2^0\right) = 1 +
+        8 = 9$
+    \item $11011 = -1 \left(2^4 - 1\right) + \left(2^3 + 2^1 + 2^0\right) = -15
+        + 11 = -4$
+\end{itemize}
+Here addition and subtraction is more simple, add the two numbers, and if there
+is a carry, remove it and add 1 to the result. This is simple to implement, easy to read,
+simple arithmetic operations, but has 2 ways to represent 0.
+% subsection One's complement (end)
+
+\subsection{Two's complement}\label{sub:Two's complement} % (fold)
+\[
+    N = - a_{n - 1} 2^{n - 1} + \displaystyle\sum_{i = 0}^{n - 2}a_i 2^i
+\]
+Examples: \begin{itemize}
+    \item $01001 = -0 \cdot 2^4 + \left(2^3 + 2^0\right) = 9$
+    \item $11100 \to -(0011 + 1) \to -0100 = -2^2 = -4$
+\end{itemize}
+Here it is easy to implement, with simple arithmetic operations, and only 1 way
+to represent 0, but it is not particularly readable. Additionally, there can be
+overflow if the result of the addition/subtraction cannot be represented with
+the provided number of bits.
+% subsection Two's complement (end)
+
+% section Representation of negative numbers in base 2 (end)
+
+\section{Floating points}\label{sec:Floating points} % (fold)
+The mass of the sum is about $1.9884335 \times 10^30kg$, which is about 31
+numbers, or 103 bits. To deal with this we will use floating points, We will
+split the section to two areas, the mantissa (M) and the exponent (E) (The first
+bit is still the sign (S)). The result is $n = \left(-1\right)^S \cdot M \cdot
+2^E$. Since this means that there are many ways to represent the same number, we
+want that $E$ and $M$ will give us a single representation, and will thus
+require $1 \leq \left|M\right| < 2$. This is called \textbf{normalised}. Which
+is to say, if there is a mentissa with the value $M$ in binary, the whole number
+will be $N = 1.M \cdot 2^E$. We will say that the floating point representation
+is \textbf{biased} with $B$ if the value is represented by $N = M \cdot 2^{E -
+B}$. This means that the exponent can be both negative and positive, and
+therefore we can represent both very large, and very small numbers. To represent
+the number in its final form, with normalisation and bias will be \[
+    N = 1.M \cdot 2^{E - B}
+\]
+
+\subsection{Examples}\label{sub:Examples} % (fold)
+$E = 110,\ M = 00000 \implies 1.M \cdot 2^{E - B} = \left(1.00000\right)_2 \cdot
+2^{6 - 3} = \left(1000.00\right)_2 = \left(8\right)_{10}$ \\
+$E = 110,\ M = 00001 \implies \left(1.00001\right)_2 \cdot 2^{6 - 3} =
+\left(1.00001\right)_2 \cdot 2^3 = \left(1000.01\right)_2 =
+\left(8.25\right)_{10}$ \\
+$E = 001,\ M = 00000 \implies \left(1.00000\right)_2 \cdot 2^{1 - 3} =
+\left(0.01000\right)_2 = \left(0.25\right)_{10}$ \\
+$E = 001,\ M = 00001 \implies \left(1.00001\right)_2 \cdot 2^{-2} =
+\left(0.0100001\right)_2 = \left(0.25785125\right)_{10}$
+
+% subsection Examples (end)
+
+According to IEEE 754, for floats we have 8 bits for the exponent, 1 for the
+sign of the mantissa, and 23 for the mantissa itself. For doubles we have 1 for
+the sign, 11 for the exponent, and 52 for the mantissa.
+% section Floating points (end)
+
+\end{document}
