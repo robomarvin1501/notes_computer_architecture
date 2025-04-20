@@ -169,7 +169,7 @@ the provided number of bits.
 % section Representation of negative numbers in base 2 (end)
 
 \section{Floating points}\label{sec:Floating points} % (fold)
-The mass of the sum is about $1.9884335 \times 10^30kg$, which is about 31
+The mass of the sum is about $1.9884335 \times 10^{30}kg$, which is about 31
 numbers, or 103 bits. To deal with this we will use floating points, We will
 split the section to two areas, the mantissa (M) and the exponent (E) (The first
 bit is still the sign (S)). The result is $n = \left(-1\right)^S \cdot M \cdot
