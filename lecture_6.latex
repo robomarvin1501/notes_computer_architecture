@@ -1,0 +1,260 @@
+\documentclass{article}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{mathtools}
+\usepackage{blindtext}
+\usepackage{multicol}
+\usepackage{graphicx}
+\usepackage{placeins}
+\usepackage{algpseudocode}
+\usepackage{algorithm}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{bbm}
+\usepackage{wrapfig}
+\usepackage{listings}
+\usepackage{hyperref}
+\graphicspath{ {./images/} }
+\usepackage[bottom=0.5cm, right=1.5cm, left=1.5cm, top=1.5cm]{geometry}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{exercise}{Exercise}
+\newtheorem{example}{Example}
+\newtheorem{definition}{Definition}[section]
+
+\newcommand{\R}{\ensuremath{\mathbb{R}}}
+\newcommand{\N}{\ensuremath{\mathbb{N}}}
+\newcommand{\Z}{\ensuremath{\mathbb{Z}}}
+\newcommand{\p}{\ensuremath{\mathbb{P}}}
+\newcommand{\E}{\ensuremath{\mathbb{E}}}
+\newcommand{\F}{\ensuremath{\mathcal{F}}}
+\newcommand{\1}{\ensuremath{\mathbbm{1}}}
+\newcommand{\B}{\ensuremath{\mathbbm{B}}}
+
+\title{Lecture 6 - MIPS design multi cycle}
+\author{Gidon Rosalki}
+\date{2025-05-04}
+
+
+\begin{document}
+\maketitle
+\section{Reminder: MIPS instruction formats}\label{sec:Reminder: MIPS instruction formats} % (fold)
+Assembly is a machine language expressed in symbolic form, using decimal and naming. Moving data to and from memory uses
+\lstinline[columns=fixed]{imm($rs)} which refers to \lstinline[columns=fixed]{Memory[ea]}, where the effective address in memory
+is \lstinline[columns=fixed]{ea = imm + $rs}. Branch and jump instructions refer to words, not bytes, and are calculated
+relative to the program counter \lstinline[columns=fixed]{PC + 4}, and \textbf{not} the \lstinline[columns=fixed]{pc}.
+There are 3 types of instructions, R-type, I-type, and J-type. R for register to register arithmetic, I for immediate,
+and J for jump. \\
+These instructions operate on the processor as well, which is a state machine that includes the internal state
+(instruction pointer, registers, flags), the state in main memory, and changes its state based off the program. \\
+
+\begin{figure}
+    \centering
+    \includegraphics[scale=0.2]{lecture_6_mips_single_cycle_data_path}
+    \caption{MIPS single cycle data path}
+\end{figure}
+
+% section Reminder: MIPS instruction formats (end)
+
+\section{Performance, frequency, and CPI}\label{sec:Performance, frequency, and CPI} % (fold)
+\subsection{Timing of single cycle MIPS}\label{sub:Timing of single cycle MIPS} % (fold)
+The \textbf{critical path} is the path from PC, I-Mem, RegFile, ALU, D-Mem, RegFile. Thus we need \[
+    t_{\text{cycle} } \geq t_{\text{fetch}}  + t_{\text{decode}}  + t_{\text{execute} } + t_{\text{memory}}  + t_{\text{writeback} }
+\]
+even though some instructions need fewer stages, for example: \begin{itemize}
+    \item The datapath for the R-type instructions is PC, I-Mem, RegFile, ALU, RegFile
+    \item For branch is PC, I-Mem, RegFile, ALU, PC
+    \item For jump is PC, I-Mem, PC
+\end{itemize}
+
+CPUs work at the rate of the clock cycle.
+\begin{itemize}
+    \item The clock cycle is measured in nsec ($10^{-9}$)
+    \item The clock frequency, which is 1 clock cycle, is measured in GHz ($10^9$)
+    \item IC - Instruction Count, the number of instructions executed in a program
+    \item CPI - Cycles per Instruction. This is the average number of cycles per instruction (in a given program)
+    \item IPC (= $\displaystyle\frac{1}{\text{CPI} }$): Instructions per Cycle
+\end{itemize}
+
+The CPU time (execution time) is the time required to execute a program: \[
+    \text{CPU time} = \text{IC} \times \text{CPI} \times \text{Clock cycle}
+\]
+Our goal is to minimise the CPU time, which can be done by minimising the clock cycle, the CPI, and the IC. This is measured by: \[
+    \text{Speedup} = \displaystyle\frac{\text{CPU TIME}_{\text{old} }}{\text{CPU TIME}_{\text{new}}}
+\]
+There are other goals, not shown in this class, such as minimising power per operation. \\
+
+To calculate the CPI of a program, we need \begin{itemize}
+    \item $IC_i$: the number of times the instruction of type $i$ is executed in the program
+    \item IC: the number of instructions executed in the program
+\end{itemize}
+This holds that \[
+    IC = \displaystyle\sum_{i}^{} IC_i
+\]
+we additionally have \begin{itemize}
+    \item $F_i = \displaystyle\frac{IC_i}{IC}$: The relative frequency of the instruction $i$
+    \item $CPI_i$: The number of cycles required to execute the instruction $i$ (on average). For example $CPI_{\text{add} } = 1,\ CPI_{\text{mul} } = 3$.
+    \item The number of cycles required to execute the program is given as \[
+            \#cyc = \displaystyle\sum_{i}^{}CPI_i \times IC_i = CPI \times IC
+        \]
+    \item CPI: \[
+            CPI = \displaystyle\frac{\#cyc}{IC} = \displaystyle\frac{\displaystyle\sum_{i}^{}CPI_i \times IC_i}{IC} =
+            \displaystyle\sum_{i}^{}CPI_i \displaystyle\frac{IC_i}{IC} = \displaystyle\sum_{i}^{}CPI_i \times F_i
+    \]
+\end{itemize}
+
+To compare performance, we first need to be able to measure it. We may measure performance through a number of mehtods: \begin{itemize}
+    \item Real HW: This is fast, and easy to do long runs, but hard to analyse
+    \item Simulators: This is slower, which limits the length of the run, and the data
+    \item Analysis: What if... (e.g. Good old pen and paper, calculating it manually)
+\end{itemize}
+When measuring performance, we also have peak performance, measured in MIPS, MFLOPS. This is often not useful, due to
+being an unachievable / unsustainable level in practice. Additionally, CPI / IPC only has meaning on the same ISA, using
+the same compiler, so is not necessarily a good measurement for comparison. We generally use benchmarks to measure
+performance, since they can be more general. A benchmark is a program, that we can run on any hardware, and measure how
+quickly it runs, and so on. These are generally based off real applications, or representative parts of real apps. (See
+\href{www.spec.org}{\texttt{www.spec.org}} for examples).
+
+% subsection Timing of single cycle MIPS (end)
+
+\subsection{Frequency}\label{sub:Frequency} % (fold)
+We need to ask ourselves how long a cycle should be. Consider the following tables: \begin{table}[H]
+     \centering
+     \begin{tabular}{|c|c|c|c|c|c|}
+         \hline
+         Instruction class & Functional unit used by instruction &  \\ \hline
+         R-Type & Fetch & REg Read & ALU & Reg write &  \\ \hline
+         Load & Fetch & Reg read & ALU & Mem read & Reg write \\ \hline
+         Store & Fetch & Reg read & ALU & Mem write &  \\ \hline
+         Branch & Fetch & Reg read & ALU & &  \\ \hline
+         Jump & Fetch & & & & \\ \hline
+     \end{tabular}
+     \caption{Required functional units}
+ \end{table}
+
+ \begin{table}[h!]
+      \centering
+      \begin{tabular}{|c|c|c|c|c|c|c|}
+          \hline
+          Instruction class & Instruction memory & Register read & ALU operation & Data Mem read or write & Register
+          write & Total inst execution time \\ \hline
+          R-type & 200 & 50 & 100 & & 50 & 400psec (0.4nsec) \\ \hline
+          Load & 200 & 50 & 100 & 200 & 50 & 600psec (0.6nsec) \\ \hline
+          Store & 200 & 50 & 100 & 200 & & 550psec (0.55nsec) \\ \hline
+          Branch & 200 & 50 & 100 & & & 350psec (0.35nsec) \\ \hline
+          Jump & 200 & & & & & 200psec (0.2nsec) \\ \hline
+      \end{tabular}
+      \caption{Timing table}
+  \end{table}
+
+The cycle time is fixed, and so we need to take the longest path (in our case, $600psec$). So, the frequency will be \[
+    \displaystyle\frac{1}{600 * 10^{-12}} = 1.67GHz
+\]
+If we consider a variable cycle, then it depends on the cycle mix. Consider a cycle of 25\% load, 10\% store, 45\%
+R-type, 15\% branch, and 5\% jump. Thus, the average CPU clock cycle would be: \[
+    600 * 0.25 + 550*0.1 + 400*0.45 + 350*0.15 + 220*0.05 = 447psec
+\]
+resulting in an average frequency of $2.2GHz$. So how can we implement a variable cycle? We currently only know the
+instruction after we carried out the fetch, and it is very difficult to change the clock in the middle of the cycle, so
+performance is wasted, since we take the worst case.
+
+In order to improve performance, assuming a given instruction set, improving the speed of a component is difficult and
+expensive, but we can change the critical path. We could also use a multicycle approach, where we break the execution
+into stages, where each stage only uses the required resources, and thus each stage can be executed faster. We save the
+results at the end of one stage to the beginning of the next, and we can reuse components to save on hardware.
+
+Each cycle takes 2 - 5 cycles, and in each cycle, a single stage is performed. Thus we need \[
+    t_{\text{multi cycle} } \geq \displaystyle\max_{} \left\{t_{\text{fetch}} , t_{\text{decode} }, t_{\text{execute} },
+    t_{\text{memory} }, t_{\text{writeback}} \right\}
+\]
+Stages take different times, so in our case \[
+    t_{\text{multi cycle} } > \displaystyle\frac{1}{\~4}t_{\text{single cycle} }
+\]
+Some instructions take less time, but \lstinline[columns=fixed]{lw} takes more time. It is OK if the average CPI is less
+than 4. \\
+
+Let us slowly build up the multi cycle CPU, starting with just R-type, then adding in \lstinline[columns=fixed]{lw}, and then
+\lstinline[columns=fixed]{sw}. \\
+
+We can save time by reusing the ALU. While the earlier parts of the processor cycle are performing their parts, we may
+simultaneously use the ALU to increment the program counter by 4. \\
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.2]{lecture_6_reusing_alu}
+    \caption{Reusing the ALU}
+\end{figure}
+
+To add in the load word instruction to our CPU, we need to add the following data path: \\
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.2]{lecture_6_data_path_rtype_lw}
+    \caption{Data path for the r-type, and lw CPU}
+\end{figure}
+
+Let us also note the following, the instruction memory, and the data memory are not used at the same time, the
+instruction memory is only used in the first part of the CPU cycle, where the data memory is only used in the 4th part,
+so we can combine them into a unified memory. To add in \lstinline[columns=fixed]{sw} we can do the following: \\
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.2]{lecture_6_r_lw_sw}
+    \caption{Data path for the r-type, lw, and sw CPU}
+\end{figure}
+
+To add in branch we need to add in the following data path, since we need to add in the sign extending on the immediate,
+and so on. \\
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.2]{lecture_6_r_lw_sw_branch}
+    \caption{Data path for the r-type, lw, sw, and branch CPU}
+\end{figure}
+
+We can improve performance here by pre-calculating the branch target. We use the decode state in which the ALU is idle
+to compute the branch target address, and then store it for 1 cycle until the branch decision is known (we can use
+ALUout for this purpose).  \\
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.2]{lecture_6_r_lw_sw_branch_efficient}
+    \caption{Optimised data path for the r-type, lw, sw, and branch CPU}
+\end{figure}
+
+To add in the jump command, all we need is to remember that it just changes the PC as follows: \[
+    PC = PC[31:28] | IR[25:0] << 2
+\]
+and so may use the following structure: \\
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.2]{lecture_6_r_lw_sw_branch_jump}
+    \caption{Data path for the r-type, lw, sw, branch, and jump CPU}
+\end{figure}
+
+This final CPU we have created may be considered as the following state machine:
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.2]{lecture_6_final_CPU_state_machine}
+    \caption{CPU state machine}
+\end{figure}
+
+So in summary, our new CPU stages for the multicycle variant are as follows: \\
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.2]{lecture_6_multicycle_cpu_state}
+    \caption{CPU state machine}
+\end{figure}
+% subsection Frequency (end)
+% section Performance, frequency, and CPI (end)
+
+\section{Summary: Single cycle and Multi cycle}\label{sec:Summary: Single cycle and Multi cycle} % (fold)
+In a single cycle CPU, each instruction is executed in one clock cycle, and the cycle time is determined by the longest
+path (of a complete instruction). In a multi cycle CPU each instruction is executed in multiple clock cycles (stages),
+and the cycle time is determined by the path of the longest stage. There are a variable number of cycles for each
+instruction, and this enables reuse of idle hardware. The performance is given by \[
+    CPI \times \#instructions \times t_{\text{cycle} }
+\]
+where the CPI is fixed for single cycle MIPS, and application dependent for multi cycle MIPS, the number of instructions
+is application and architecture dependent, and the cycle time is implementation (uArch) dependent.
+% section Summary: Single cycle and Multi cycle (end)
+
+
+\end{document}
