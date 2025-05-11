@@ -1,0 +1,256 @@
+\documentclass{article}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{mathtools}
+\usepackage{blindtext}
+\usepackage{multicol}
+\usepackage{graphicx}
+\usepackage{placeins}
+\usepackage{algpseudocode}
+\usepackage{algorithm}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{listings}
+\usepackage[bookmarks=true]{hyperref}
+\usepackage{bookmark}
+\usepackage{bbm}
+\usepackage{wrapfig}
+\graphicspath{ {./images/} }
+\usepackage[bottom=0.5cm, right=1.5cm, left=1.5cm, top=1.5cm]{geometry}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{exercise}{Exercise}
+\newtheorem{example}{Example}
+\newtheorem{definition}{Definition}[section]
+
+\newcommand{\R}{\ensuremath{\mathbb{R}}}
+\newcommand{\N}{\ensuremath{\mathbb{N}}}
+\newcommand{\Z}{\ensuremath{\mathbb{Z}}}
+\newcommand{\p}{\ensuremath{\mathbb{P}}}
+\newcommand{\E}{\ensuremath{\mathbb{E}}}
+\newcommand{\F}{\ensuremath{\mathcal{F}}}
+\newcommand{\1}{\ensuremath{\mathbbm{1}}}
+\newcommand{\B}{\ensuremath{\mathbbm{B}}}
+
+\title{Lecture 7 - Pipeline}
+\author{Gidon Rosalki}
+\date{2025-05-11}
+
+
+\begin{document}
+\maketitle
+\section{Recap - single cycle, multi cycle}\label{sec:Recap - single cycle, multi cycle} % (fold)
+Single cycle has 5 stages to execute an instruction (fetch, decode, execute, memory, writeback), and each instruction is
+executed in a single cycle. This results in long cycle times, especially when some instructions need not one of the
+stages (consider memory for example. \\
+Multi cycle takes the single cycle implementation, and adds registers between the stages. This allows us to separate the
+single cycle into multiple smaller cycles for the stages for executing an instruction, allowing us to have a much higher
+cycle time. \\
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.3]{lecture_7_mips_state_machine}
+    \caption{MIPS state machine}
+\end{figure}
+However, despite there being many benefits to multi-cycle, such as saving hardware elements through reuse in different
+stages, and having a shorter cycle time, it also has a higher CPI (cycles per instruction), which is bad, especially
+since currently the frequency increase is lower than the CPI increase, resulting in lower performance (for now). Today
+we will keep the short cycle time, and reduce the CPI.
+% section Recap - single cycle, multi cycle (end)
+
+\section{Pipeline overview}\label{sec:Pipeline overview} % (fold)
+The idea is to keep everything busy with useful work. It is a general purpose technique to improve efficiency, not just
+specific to CPUs. We organise the pipeline by splitting the process into independent stages, this allows a stage to start
+executing the next workload while the following stages process previous ones. There are many examples in real life, such
+as assembly lines, or security at airports, and so on. Consider laundry, if laundry has 4 stages, washing, drying,
+folding, and storing, let us state that every stage takes half an hour. If I want to do 4 loads of laundry, then it will
+take $4 * 2 = 8$ hours, however, if I pipeline, and do the next stage for every load while the previous is executing,
+then we may cut it down to 3.5. In short, I wash the first load, then I wash the second, while the first is drying, I
+wash the third, while the second is drying, and I'm folding the first, and so on.
+
+\subsection{Definitions}\label{sub:Definitions} % (fold)
+\textbf{Latency}: The time between when something is initiated, and when its effects begin / become dtectable. This can
+also be considered the time to completely execute a specific task, from the start to the end. For example, the latency
+to travel by the motorway from Jerusalem to Tel Aviv is 50 minutes (no traffic). \\
+\textbf{Throughput}: Units of work that can be done in a period of time, for example, the Jerusalem to Tel Aviv motorway
+has a throughput of 30 cars per minute. \\
+\textbf{CPI}: Cycles per instruction, the \textit{average} number of clock cycles to execute an instruction. $\text{IPC}
+= \displaystyle\frac{1}{\text{CPI} }$
+% subsection Definitions (end)
+
+Following is a diagram making use of pipelining on the multi cycle MIPS implementation:
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.2]{lecture_7_pipelined_vs_nonpiplined}
+    \caption{Pipelined vs non pipelined}
+\end{figure}
+
+Pipelining does not reduce the latency of a single workload (instruction in our case), but rather increases the total
+throughput (number of completed workloads per time unit). The pipeline throughput (= rate) is limited by the slowest
+stage. The potential speedup is \[
+    \text{speedup} = \displaystyle\frac{\text{Throughput}_{\text{non pipelined}} }{\text{Throughput}_{\text{pipelined}}
+    } = \displaystyle\frac{\text{workload time}_{\text{non pipelined}} }{\text{slowest stage time}_{\text{pipelined} }}
+\]
+In the ideal case, where all stages have the same length: \[
+    \text{speedup}  = \displaystyle\frac{\text{workload time}_{\text{non pipelined}} }{\text{slowest stage
+    time}_{\text{pipelined} }} = \text{Number of stages}
+\]
+n order to increase the speedup, we partition the pipe to many pipe stages, and balance the work in the pip stages, as
+in we make the longest stage as short as possible.
+% section Pipeline overview (end)
+
+\pagebreak
+\section{Pipeline implementation}\label{sec:Pipeline implementation} % (fold)
+Let us begin by ignoring branching, and control signals.
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.2]{lecture_7_pipeline_pt_1}
+    \caption{Adding registers to create stages}
+\end{figure}
+Every green pipe is a clock cycle and pipeline stage, and at each clock cycle we are locking the relevant registers, and
+storing the output from the previous stage in them. \\
+
+There is an extensive example of calling commands with pipelines in the slideshow, but replicating it here would be
+tedious.
+% section Pipeline implementation (end)
+
+\section{Pipeline hazards}\label{sec:Pipeline hazards} % (fold)
+\textbf{Hazards} prevent the next instruction from executing during its designated cycle. There are 3 types: \begin{enumerate}
+    \item \textbf{Structural} hazards: hardware can’t support a combination of instructions (for our laundry examples, a
+        single person to fold and put clothes away)
+    \item \textbf{Data} hazards: Instruction depends on the result of prior instruction which is still in the pipeline
+    \item \textbf{Control} hazards: Branch resolution depends on the result of a previous operation
+\end{enumerate}
+
+\subsection{Structural hazards}\label{sub:Structural hazards} % (fold)
+Consider for examples Instruction/Data memory, or read and write GPRs.
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.2]{lecture_7_structure_hazard}
+    \caption{Structure hazard abstract}
+\end{figure}
+To resolve the problem where we try and read and write to the same register simultaneously (writeback from a prior
+cycle, and a read from a subsequent cycle), we will add a comparison to the internal structure of the register file. We
+will check if we are reading and writing to the same register, and if so, we will return the value of the write to the
+read, instead of the original value of the register.
+% subsection Structural hazards (end)
+
+\subsection{Data hazards}\label{sub:Data hazards} % (fold)
+An instruction depends on the result of a prior instruction that is unfinished, and is still in the pipeline. There are
+3 types:
+
+\begin{enumerate}
+    \item Read after Write (RAW): An operand is modified, and read soon after.
+        \begin{lstlisting}
+add $2, $1, $3
+add $4, $2, $3
+        \end{lstlisting}
+    \item Write after Read (WAR): Read an operand, and write soon after.
+        \begin{lstlisting}
+add $4, $1, $3
+add $3, $1, $2
+        \end{lstlisting}
+    \item Write after Write (WAW): Two instructions write in the same operand.
+        \begin{lstlisting}
+add $1, $2, $3
+add $1, $4, $5
+        \end{lstlisting}
+\end{enumerate}
+The second 2 are not real hazards, since the second instruction is not dependent on the first, but in the first where
+the read after read (on the last register of the instruction) is not a hazard, the RAW on register
+\lstinline[columns=fixed]{$2} is indeed a hazard.
+
+\subsubsection{RAW data hazards}\label{sec:RAW data hazards} % (fold)
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.2]{lecture_7_raw_data_hazard}
+    \caption{RAW data hazard}
+\end{figure}
+We see that we have subsequent instructions attempting to read the value from a register, before that value has been
+written to it. We have a few solutions available:
+\begin{enumerate}
+    \item NOP generated bubble. The compiler adds a NOP instruction after instructions on which subsequent instructions
+        are dependent, to ensure that the data is called in writeback before a subsequent instruction calls read. In the
+        above example, we would add 3 NOPs after the first \lstinline[columns=fixed]{sub} to allow this. However, this
+        results in a big performance hit, since we must add many instructions that do nothing. Perhaps we could rearrange
+        the instructions to resolve this, but this results in changing the program
+    \item The hardware can detect hazards, and add stalls to add in this delay, so in the above example, the
+        hardware would add 3 stalls after the first sub, however, this also results in a big performance hit.
+        \pagebreak
+    \item Forwarding: Instead of waiting for results to be written into the register file, use them as soon as they are
+        calculated. We achieve this by adding a multiplexer connecting the output register of the ALU to the input,
+        allowing us to call directly from the output of the previous command:
+            \begin{figure}[H]
+                \centering
+                \includegraphics[scale=0.2]{lecture_7_forwarding_to_execute}
+                \caption{Forwarding the ALU output to the execute stage}
+            \end{figure}
+            \begin{figure}[H]
+                \centering
+                \includegraphics[scale=0.2]{lecture_7_forwarding_pseudocode}
+                \caption{Forwarding the ALU pseudocode}
+            \end{figure}
+\end{enumerate}
+
+% subsubsection RAW data hazards (end)
+
+\subsubsection{Memory to memory copy}\label{sec:Memory to memory copy} % (fold)
+Here we load from a register immediately following a store from the same register: \begin{lstlisting}
+lw $1, 4($2)
+sw $1, 4($3)
+\end{lstlisting}
+So we have not finished loading the value into \lstinline[columns=fixed]{$1} the value we want to write. We cannot
+resolve this by forwarding the data, we have to complete the store first, so we will carry out \textbf{stalls} instead.
+We will use the following logic for stalls:
+\begin{lstlisting}
+if (ID/EX.RegWrite && (ID/EX.opcode == lw) && ((ID/EX.WriteReg == IF/ID.ReadReg1) || (ID/EX.WriteReg == IF/ID.ReadReg1))
+    {
+        stall();
+    }
+\end{lstlisting}
+but only if the instruction at ID really reads these registers. To add hazard detection to our forwarding, we will use
+the following implementation:
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.2]{lecture_7_forwarding_plus_hazard_protection}
+    \caption{Forwarding with hazard detection unit}
+\end{figure}
+The instruction slot after a load is called the "load delay slot". If that instruction uses the result of the load, then
+the hardware interlock will stall it for one cycle. The compiler can avoid the stall by putting an unrelated instruction
+in that slot. For example:
+\begin{lstlisting}
+        LW Rb,b
+        LW Rc,c
+Stall   ADD Ra,Rb,Rc
+        SW a,Ra
+        LW Re,e
+        LW Rf,f
+Stall   SUB Rd,Re,Rf
+        SW d,Rd
+\end{lstlisting}
+We can convert this by moving two instructions as follows:
+\begin{lstlisting}
+        LW Rb,b
+        LW Rc,c
+        LW Re,e
+        ADD Ra,Rb,Rc
+        LW Rf,f
+        SW a,Ra
+        SUB Rd,Re,Rf
+        SW d,Rd
+\end{lstlisting}
+and so we no longer need the stalls.
+% subsubsection Memory to memory copy (end)
+% subsection Data hazards (end)
+
+
+\subsection{Control hazards}\label{sub:Control hazards} % (fold)
+In the pipeline, the current instruction is decoded while the next one is fetched. For sequential reasons, the PC
+advanced by 4 during fetch. A control hazard happens when program flow is \textbf{not} sequential. For example,
+conditional branches such as \lstinline[columns=fixed]{beq} and \lstinline[columns=fixed]{bne}, or unconditional
+branches such as \lstinline[columns=fixed]{j}, \lstinline[columns=fixed]{jal}, and \lstinline[columns=fixed]{jr}, or
+even exceptions. This leaves us with a problem, how can we identify a branch before we decode it?
+% subsection Control hazards (end)
+% section Pipeline hazards (end)
+
+\end{document}
