@@ -250,6 +250,55 @@ advanced by 4 during fetch. A control hazard happens when program flow is \textb
 conditional branches such as \lstinline[columns=fixed]{beq} and \lstinline[columns=fixed]{bne}, or unconditional
 branches such as \lstinline[columns=fixed]{j}, \lstinline[columns=fixed]{jal}, and \lstinline[columns=fixed]{jr}, or
 even exceptions. This leaves us with a problem, how can we identify a branch before we decode it?
+
+We could add \lstinline[columns=fixed]{nop}s, but this involves a three cycle penalty per branch, a very large waste
+given the prevalence of the branch instruction in code.
+
+We can instead insert a special branch comparator in stage 2. As soon as an instruction is decoded, and the opcode is
+identified as branch, we immediately make a decision, and set the new value of the PC. This has the benefit that branch
+is completed in stage 2, and thus only one unnecessary instruction is fetched, and so only one
+\lstinline[columns=fixed]{nop} is needed.
+
+Overall, we have a few solutions. We may \textbf{stall} the pipeline, and not execute instructions until a branch condition is
+resolved. This has a 3 cycle penalty for each branch, and since branches are very common (on average, every 8th
+executed instruction is a branch, and 80\% of program execution time is spent in loops), thus our IPC would be severely
+impacted: \begin{align*}
+    CPI_{\text{ideal} } &= 1 \\
+    CPI_{\text{real} } &= CPI_{\text{ideal} } + \left(\text{\% of branches} = 12.5\%\right) \cdot \left(\text{penalty} =
+    3\right) \\
+                      &= 1.375
+\end{align*}
+
+We could \textbf{fetch not taken}, where we execute instruction from the not taken path, as if there is no branch, and
+that way if the branch is not taken, then there is no penalty. If the branch was taken, then we flush the wrong
+instructions before they change the CPU state (registers / memory), and fetch the instructions from the correct (taken)
+path. Assuming 50\% of branches were not taken on average, then the IPC will be 0.84 of the ideal, on average. This is a
+16\% slowdown, and we need to find something better.
+
+Next we have \textbf{delayed branches}. What if the software (compiler) could help? Then a change to the ISA is
+required. We redefine a branch to take place after $n$ following instructions. The hardware therefore executes $n$
+instructions following the branch, regardless of whether or not a branch was taken. The compiler fills the $n$ slots
+following the branch with instructions that should be executed regardless of branch resolution. These are either from
+before the branch instruction, or instructions that come after the branch paths have converged. If the compiler cannot
+find such instructions, then it can always put in \lstinline[columns=fixed]{nop}s. Unfortunately, filling in these slots
+is difficult, especially as the number of slots increases. Assuming that we can fill $d\%$ of the delayed slots, then \[
+    CPI_{\text{real} } = 1 + \left(0.2 \cdot \left(1 - d\right)\right) \cdot 3
+\]
+So for example, for $d = 0.6$, we get $CPI_{\text{real} } = 1.2$. Additionally, by mixing our architecture, with our
+uArch, since new generations require different numbers of delays slots, this leads to countability issues between
+generations.
+
+Finally, we have \textbf{Dynamic branch prediction}. As soon as an instruction is fetched (at the IF stage), we change
+the PC to the predicted path, and switch to the right path after the branch execution if the prediction was wrong.
+Complex hardware at the IF stage predicts whether or not the instruction is a branch, would a branch be taken or not,
+and if it is taken, what is the target. This is called the \textbf{Branch Target Buffer} (BTB). It is organised exactly
+like a cache. \\
+This way, if the prediction is correct, then we change nothing, and a wrong prediction involves flushing the pipeline,
+and restarting from the correct PC. Assuming a correct prediction rate of $p\%$: \[
+    CPI_{\text{real} } = 1 + \left(0.2 \cdot \left(1 - p\right)\right) \cdot 3
+\]
+So for example, if $p = 0.85$, then $IPC_{\text{real} } = 0.92$. Modern predictors can even achieve $0.95+$.
+
 % subsection Control hazards (end)
 % section Pipeline hazards (end)
 
