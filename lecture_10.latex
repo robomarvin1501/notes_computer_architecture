@@ -136,11 +136,11 @@ protected from other programs, and the OS decides which physical memory each pro
 control is provided by page tables, maintained by the OS. The hardware does the virtual to physical translation, using
 page tables provided by the OS.
 
-\begin{wrapfigure}{r}{0.3\textwidth}
+\begin{figure}[H]
     \centering
     \includegraphics[scale=0.2]{lecture_10_mapping_function}
     \caption{}
-\end{wrapfigure}
+\end{figure}
 A simple function cannot predict arbitrary mapping, so instead we use a table for the mappings, (virtual address to
 physical address translation). This is called the page table, and the page number is the index in the table. In the
 virtual memory mapping function, the virtual offset is the physical offset, and we can acquire the physical page number
@@ -239,6 +239,49 @@ What if a page translation is not in the TLB? Then we have two options: \begin{e
 Most modern CPUs use the second option, since it is much faster.
 % subsubsection TLB miss (end)
 % subsection TLB (end)
+
+\subsection{Hierarchical page tables}\label{sub:Hierarchical page tables} % (fold)
+These reduce the size of the Page Table, especially in the case where the program is small (most cases). The virtual
+address is 64 bits in size, 12 for the page offset, and 52 for the page number. How can we store $2^{52}$ PTEs in
+memory? This is a huge amount. Let us suppose, for the purposes of example, we use a 32 bits virtual address space, or
+$2^{32}$ bytes. Assuming 4KB pages, and each PTE is 4B, then we need $\displaystyle\frac{2^{32}}{2^{12}} = 2^{20}$ b page
+table entries to cover the virtual address space, and $2^{20} \cdot 4 = 2^{22}$ bytes, is 4MB. So what happens if we
+have 256 processes in memory, each consuming 16MB of memory? Then we need 4MB $\cdot 256 = $1GB of memory. Since each
+process uses 16MB of memory, then on average each processes only uses 16KB of the page table. A total of 4MB. So, less
+than 1\% of the page table is actually used. With a 64 bit address space, this is impractical to implement, since we'll
+need 16 million GB of memory, just for the page table. The solution to this is to use Hierarchical page tables:
+
+\subsection{Explanation}\label{sub:Explanation} % (fold)
+The page table structures is defined by the ISA. Accessing a given page involves first walking the tables, which each
+point to each other. This is particularly effective when pages are sparse in the virtual address space. In this system,
+we split the linear address into an offset, table, and directory.
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.2]{lecture_10_lineartranslation_32_bit_paging}
+    \caption{Linear address translation for a 4KB page, using 32 bit paging}
+\end{figure}
+
+% subsection Explanation (end)
+
+\subsubsection{Example - page table}\label{sec:Example - flat page table} % (fold)
+Flat page table (no hierarchy): \\
+Our example system will have: \begin{itemize}
+    \item 4KB pages
+    \item PTE size = 4 bytes
+    \item 32 bit birtual address space
+    \item 30 bit physical address space
+\end{itemize}
+Our flat page table will havbe \[
+    \displaystyle\frac{2^{32}}{2^{12}} = 2^{20}
+\]
+pages, and so our page table memory is $2^{20} \cdot 4 = 2^22 = $4MB. So the total memory used for the flat table is
+4MB. However, let us consider the system, but with hierarchy. \\
+Usage: 10 pages, address \lstinline[columns=fixed]{0x01004000 - 0x01013FFF}, 16 pages of 4KB. The page directory will be
+$2^{10}$ entries $\cdot 4B = 2^{12}B = 4$KB. A single page direcotyr is required, so we are using a single entry, entry
+number 4. The page table has $2^{10}$ entries $\cdot 4B = 2^{12}B = $4KB. So we are using 16 entries, or 16 PTEs, used
+to point to 16 pages, entries 4 to 19. So, the total memory used by the Hierarchical page table: 8KB.
+% subsubsection Example - flat page table (end)
+% subsection Hierarchical page tables (end)
 
 % section Virtual memory (end)
 
