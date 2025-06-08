@@ -1,0 +1,171 @@
+\documentclass{article}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{mathtools}
+\usepackage{blindtext}
+\usepackage{multicol}
+\usepackage{graphicx}
+\usepackage{placeins}
+\usepackage{algpseudocode}
+\usepackage{algorithm}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage[bookmarks=true]{hyperref}
+\usepackage{bookmark}
+\usepackage{bbm}
+\usepackage{listings}
+\usepackage{wrapfig}
+\graphicspath{ {./images/} }
+\usepackage[bottom=0.5cm, right=1.5cm, left=1.5cm, top=1.5cm]{geometry}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{exercise}{Exercise}
+\newtheorem{example}{Example}
+\newtheorem{definition}{Definition}[section]
+
+\newcommand{\R}{\ensuremath{\mathbb{R}}}
+\newcommand{\N}{\ensuremath{\mathbb{N}}}
+\newcommand{\Z}{\ensuremath{\mathbb{Z}}}
+\newcommand{\p}{\ensuremath{\mathbb{P}}}
+\newcommand{\E}{\ensuremath{\mathbb{E}}}
+\newcommand{\F}{\ensuremath{\mathcal{F}}}
+\newcommand{\1}{\ensuremath{\mathbbm{1}}}
+\newcommand{\B}{\ensuremath{\mathbbm{B}}}
+
+\title{Lecture 10 - Virtual Memory}
+\author{Gidon Rosalki}
+\date{2025-06-08}
+
+
+\begin{document}
+\maketitle
+\section{Introduction}\label{sec:Introduction} % (fold)
+In a modern operating system, even when not running many programs personally, it is not unusual to have hundreds of
+processes running. Each process uses memory which is reserved by the OS. Additionally, should one open a program such as
+Chrome, or Excel, it is not unusual to see a process use more memory than is physically installed in the PC. Also, how
+can so many processes share this memory? Often with an overall usage that is many times the total available physical
+memory? How come processes do not interfere with each other? These questions are all resolved by \textbf{virtual
+memory}. \\
+
+\subsection{Memory management}\label{sub:Memory management} % (fold)
+Before this week, the whole machine ran a single program. Resources were managed manually by the developer, and there
+was no external software with unknown requirements. Now, we use multi tasking. This is an effective way to share
+resources between processes, and allows the dynamic coexistence of many processes. When asking how many processes share
+memory, we need to consider the following: \begin{itemize}
+    \item What if a processes tries to access the memory of another process?
+    \item What if a process needs more memory, and none is available?
+    \item What about processes that are not known to each other?
+    \item What happens when a new process is spawned?
+\end{itemize}
+
+\subsubsection{Requirements}\label{sec:Requirements} % (fold)
+We have the following requirements: \begin{itemize}
+    \item Scalability: It should be possible to change the amount of memory available for a process, maybe even to more
+        than the memory hpysically installed in the machine.
+    \item Isolation: Different processes should be separated, due to concerns of security, interference, protection, and
+        so on.
+    \item Orthogonality: Each process should see the same address space (0x0000 - 0xffff), and thus be completely
+        unaware of each other. In other words, each process runs inside its own sandbox, in which it thinks that there
+        are no other processes on the machine.
+\end{itemize}
+% subsubsection Requirements (end)
+
+\subsubsection{Solution - virtual and physical memory}\label{sec:Solution - virtual and physical memory} % (fold)
+Instead of using the physical memory directly, the programmer accesses the \textbf{virtual address space}. This is a perfect
+abstraction, in which memory is contiguous, and completely belongs to a process. This can be the complete memory space
+(0x0 - 0xffffffff). This is in contrast to the \textbf{physical address space}, which is the real computer memory
+(DRAM), used by several processes. It is hidden from the programmer by the OS and by hardware. \\
+This leaves us with the question, how to map the virtual address space to the physical address space?
+% subsubsection Solution - virtual and physical memory (end)
+
+
+
+\subsubsection{Virtual memory}\label{sec:Virtual memory} % (fold)
+One process has access to one virual address space. We split both the physical and virtual address spaces into blocks of
+fixed size (usually 4KB) called pages. Only pages used by the process are stored ("mapped") in computer memory, since if
+a page is not being used, there is no need to map it from the virtual space. Pages can be in physical memory, or on the
+disk. Memory acts as a cache for the secondary storage, the disk. Processes may therefore use more pages than physical
+memory can store.
+% subsubsection Virtual memory (end)
+% subsection Memory management (end)
+% section Introduction (end)
+
+\section{Virtual memory}\label{sec:Virtual memory} % (fold)
+\subsection{Memory hierarchy}\label{sub:Memory hierarchy} % (fold)
+\subsubsection{Scalability}\label{sec:Scalability} % (fold)
+We use the principles of caching to get the best of both worlds. We get the speed of fast and expensive memory, but with
+the size of cheap, slow memory. As we learnt previously, caches often offer speeds that approach that of an SRAM cache,
+with the size of a DRAM cache. We can use the same principles the next level up, the speed of DRAM memory, with the size
+of disk memory. We need to check if we can apply the same techniques: \begin{itemize}
+    \item Where do we store the tag and valid bits?
+    \item How do we handle associativity?
+    \item What should we use as the replacement policy?
+\end{itemize}
+% subsubsection Scalability (end)
+
+\subsubsection{Isolation}\label{sec:Isolation} % (fold)
+This is security and protection for processes: It allows multiple processes to simultaneously occupy memory, and
+provides protection between them, provides the separation of memory that belongs to each process, and denies the ability
+for a process to read/write to the memory of another process. It also protects the OS space, by providing a separation
+of OS memory from application memory.
+% subsubsection Isolation (end)
+
+\subsubsection{Orthogonality}\label{sec:Orthogonality} % (fold)
+This provides each program the illusion as if it has its own private memory. Each program has a different view of the
+memory, for example, in two programs, they can have the code begin at the same address, such as 0x40000000, but each
+program has its own code in memory.
+% subsubsection Orthogonality (end)
+% subsection Memory hierarchy (end)
+
+\subsection{Mapping}\label{sub:Mapping} % (fold)
+\subsubsection{Terminology}\label{sec:Terminology} % (fold)
+\begin{itemize}
+    \item Physical memory: The computer's main memory, indexed using physical addresses.
+    \item Virtual memory: The program's memory, accessed by a virtual address
+    \item Page: A unit of memory allocated and mapped by the virtual memory translation (also called frame). This is
+        equivalent in some ways to a block in cache.
+    \item Page table: A table in physical memory, that holds the translation from virtual memory to physical memory
+    \item TLB: Translation Look-Aside Buffer: A table (cache) of virtual to physical address translations.
+\end{itemize}
+% subsubsection Terminology (end)
+
+\subsubsection{Virtual to physical address translation}\label{sec:Virtual to physical address translation} % (fold)
+Each program operates in its own virtual address space, and one program runs on one processor at a time. Each program is
+protected from other programs, and the OS decides which physical memory each program can use, and how it is mapped. This
+control is provided by page tables, maintained by the OS. The hardware does the virtual to physical translation, using
+page tables provided by the OS.
+
+\begin{wrapfigure}{r}{0.3\textwidth}
+    \centering
+    \includegraphics[scale=0.2]{lecture_10_mapping_function}
+    \caption{}
+\end{wrapfigure}
+A simple function cannot predict arbitrary mapping, so instead we use a table for the mappings, (virtual address to
+physical address translation). This is called the page table, and the page number is the index in the table. In the
+virtual memory mapping function, the virtual offset is the physical offset, and we can acquire the physical page number
+by indexing the table, with the virtual page number.
+
+The page table has an entry for each possible virtual page. Let us consider an example page table memory usage, with 4K
+pages. We have 32 bits of virtual memory (4GB), and 30 bits of physical addresses (1GB of physical memory). The page
+size if 4KB (12 bits page offset). Each table netry requires 18 bits (PPN), and also 1 balid bit. We will round this up
+to 32 bits, since the entry size is always rounded to bytes, or words (4 bytes in our case). This is for ease of page
+table entries handling in memory (for software). The tab;e size for a full 32 bit virtual address space is \[
+    4 \cdot 2^{20} = \text{4MB}
+\]
+(4 bytes $\cdot 2^{20}$ virtual pages). If we have 16 processes, we will need 64MB of memory to hold their pages in
+memory. Now, this is quite a lot. Can we reduce this?
+
+Let us first consider an example address mapping, where we have 32 bits of virtual memory, 30 bits of physical address,
+and a page size of 4KB (12 bits page offset). Given a virtual address \lstinline[columns=fixed]{0x00045678}, this means
+a virtual page number \lstinline[columns=fixed]{0x56}, and a page offset of \lstinline[columns=fixed]{0x6787}. So, page
+table entry number \lstinline[columns=fixed]{0x45} will contain the PPN.
+% subsubsection Virtual to physical address translation (end)
+% subsection Mapping (end)
+
+
+% section Virtual memory (end)
+
+
+
+\end{document}
