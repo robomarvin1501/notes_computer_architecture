@@ -65,7 +65,7 @@ the only one on this list that is not volatile, but oh so slow.
 SRAM, or Static Random Access Memory, is a series of cells arranged in rows and columns, where each cell is constructed
 of 2 not gates, and 2 transistors. The powering on and off of the relevant bit lines opens up the cells for reading /
 writing. We select the cells to be turned on using the address line, and then we write to them using the bit lines.
-\begin{figure}[H] % TODO cleanup images
+\begin{figure}[H]
     \centering
     \includegraphics[scale=0.2]{lecture_8_SRAM_overview}
     \caption{SRAM overview}
@@ -86,11 +86,12 @@ writing. We select the cells to be turned on using the address line, and then we
 % subsection SRAM (end)
 
 
+\pagebreak
 \subsection{DRAM}\label{sub:DRAM} % (fold)
 DRAM only requires 1 transistor:
 \begin{figure}[H]
     \centering
-    \includegraphics[scale=0.3]{lecture_8_SRAM_cell_transistors}
+    \includegraphics[scale=0.3]{lecture_8_DRAM_transistor}
     \caption{DRAM cell transistors}
 \end{figure}
 
@@ -175,7 +176,9 @@ The previous concept of a 2 way set associative can be expanded to 4 ways, as wi
 % subsubsection 4 way set associative (end)
 
 \subsubsection{Cache organisation}\label{sec:Cache organisation} % (fold)
-% TODO 27
+Cache organisation is about mapping of main memory addresses to a smaller set of addresses - hash function. One must
+also map these locations through a way that enables lookup: Allowing us to find data quickly, should the data be cached
+(ie, located in the cache).
 % subsubsection Cache organisation (end)
 
 \subsection{Types of cache misses}\label{sub:Types of cache misses} % (fold)
