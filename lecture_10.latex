@@ -161,8 +161,84 @@ and a page size of 4KB (12 bits page offset). Given a virtual address \lstinline
 a virtual page number \lstinline[columns=fixed]{0x56}, and a page offset of \lstinline[columns=fixed]{0x6787}. So, page
 table entry number \lstinline[columns=fixed]{0x45} will contain the PPN.
 % subsubsection Virtual to physical address translation (end)
+
+\subsubsection{Page table}\label{sec:Page table} % (fold)
+A page table is a structure, owned by the OS, which contains the mapping of virtual addresses to physical addresses.
+There are several different ways, all up to the OS, to manage this table. Each process has its own page table, and the
+page table contains Page Table Entries (PTE) which indicate the following: \begin{itemize}
+    \item Whether the page is in memory, or on the disk
+    \item The physical address of the page, if it is in memory, and the disk locator, if it is on the disk.
+    \item Whether the data was modified (for evictions, if it was modified, then the modified data needs to first be
+        written to the disk, whereas if it was not, it may be removed without concern)
+    \item Access rights (read-only, read-write, etc. for security).
+\end{itemize}
+As said above, this is all managed by the OS, and the OS does all the complex tasks, such as initialisation, miss
+handling, and evictions. Teh hardware uses the page table to translate virtual addresses into physical addresses.
+% subsubsection Page table (end)
+
+\subsubsection{Translation failures}\label{sec:Translation failures} % (fold)
+There are a few different possible translation failures. If we try and access an invalid virtual address, tehn this will
+cause a "segmentation fault", since no page table entry was allocated by the OS for this virtual address. \\
+An invalid access will cause an exception, called "protection fault". Fore example, attempting to execute data from a
+data page, or by attempting to write to a read only page. \\
+If a page is not in physical memory, then this will cause a "page fault". The hardware saves the current state, and
+gives control to the OS. The OS detects the page causing the fault, and evicts some page if no free pages are left in
+physical memory. The OS then loads the page from the disk to the physical memory, and updates the PTE (with the physical
+address, and the on disk bit). Finally, the OS gives control back to the hardware. \\
+
+When there is not enough memory, the OS can move pages to the disk. When valid = 1, then the page is in memory, and when
+valid = 0, then the page is on the disk. Mapping of pages to the disk is done by the OS, using specific structures. Once
+a page is moved to disk, the physical memory can be re-assigned to another virtual page.
+% subsubsection Translation failures (end)
+
+\subsubsection{Performance}\label{sec:Performance} % (fold)
+Performing a load, or a store, now requires an additional memory access. 1 access to the page table to translate the
+virtual address into a physical address, and 1 access to the actual memory. This is 2 physical memory accesses, which is
+\textbf{slow}. Let us observe, that since there is locality in data accesses, there is therefore also locality in
+virtual address translation. We can use a small cache of virtual to physical address translations to make
+translation faster, in which we cache the relevant information from the page table entry. For historical reasons, this
+cache is called the Translation Lookaside Buffer, or TLB
+% subsubsection Performance (end)
 % subsection Mapping (end)
 
+\subsection{TLB}\label{sub:TLB} % (fold)
+The page table is too large to be stored in hardware, and so it is stored in memory. Each translation requires one or
+more memory accesses. Translation is needed for every load, store and instruction fetch, which is too many. Caches help,
+but insufficiently. TLB caches recently used translation (PTEs: Page Table Entries). This speeds up translation, and
+normally contains 64 - 256 entries. The TLB access time is typically faster than cache access time. \\
+
+In many cases, the TLB is fully associative. The translated address (physical address) is then used for accessing data.
+The look up is in caches, and on a miss, goes to memory. The physical address used for cache search, and memory access,
+is the same.
+
+The TLB is a cache of page table mappings. Teh access time is comparable to that of the cache, i.e. significantly less
+than main memory access. The dirty bit indicates that the page was modified in memory (Stored to). This is updated by
+the CPU, and used by the OS to determine wheter to write the page back to disk when replaced (write back). Access rights
+/ permissions, and other bits are typically a copy of the PTE bits, such as write protection, and user/OS data. There is
+also optionally the LRU bits, for TLB replacement. Here is a table example:
+\begin{table}[h!]
+     \centering
+     \begin{tabular}{|c|c|c|c|c|}
+         \hline
+         Valid & Tag (VPN) & PPN & Dirty & Access writes and misc. \\ \hline
+               & & & & \\ \hline
+     \end{tabular}
+     \caption{}
+\end{table}
+
+\subsubsection{TLB miss}\label{sec:TLB miss} % (fold)
+What if a page translation is not in the TLB? Then we have two options: \begin{enumerate}
+    \item Software managed TLB (used by MIPS): Here the hardware traps to the OS (page fault), and it is up to the OS to
+        decide what to do. The CPU does not know the page table format, and the OS must know the TLB entry structure to
+        set it up. The TLB entry requires a Dirty bit to support OS page swapping.
+    \item Hardware managed TLB: The hardware loads information from the PTE to the TLB. If PTE.valid = 0, i.e. the page
+        is not present, then the CPU will trap to the OS to handle a page fault, and the OS will load the page from the
+        disk into memory (potentially replacing another page). The CPU \textbf{must} know the page table format, and
+        the OS need not know the TLB entry structure.
+\end{enumerate}
+Most modern CPUs use the second option, since it is much faster.
+% subsubsection TLB miss (end)
+% subsection TLB (end)
 
 % section Virtual memory (end)
 
