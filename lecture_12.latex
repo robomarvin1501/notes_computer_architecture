@@ -35,6 +35,27 @@
 \newcommand{\1}{\ensuremath{\mathbbm{1}}}
 \newcommand{\B}{\ensuremath{\mathbbm{B}}}
 
+\definecolor{dkgreen}{rgb}{0,0.6,0}
+\definecolor{gray}{rgb}{0.5,0.5,0.5}
+\definecolor{mauve}{rgb}{0.58,0,0.82}
+
+\lstset{frame=tb,
+  language=C,
+  aboveskip=3mm,
+  belowskip=3mm,
+  showstringspaces=false,
+  columns=flexible,
+  basicstyle={\small\ttfamily},
+  numbers=none,
+  numberstyle=\tiny\color{gray},
+  keywordstyle=\color{blue},
+  commentstyle=\color{dkgreen},
+  stringstyle=\color{mauve},
+  breaklines=true,
+  breakatwhitespace=true,
+  tabsize=3
+}
+
 \title{Lecture 12 - Speeding up Single Threaded using OOOE}
 \author{Gidon Rosalki}
 \date{2025-06-22}
@@ -146,7 +167,254 @@ instructions in parallel), and is required for performance for general purpose c
 units, and ensures execution when waiting for results (e.g. handling cache misses). However, building an OOOE CPU
 requires complex hardware, since we need to rename registers, reorder results, and have the CPU speculate instructions
 while also handling instances where it speculated incorrectly.
+
+\subsection{General scheme}\label{sub:General scheme} % (fold)
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.3]{lecture_12_oooe_general_scheme}
+    \caption{OOOE general scheme}
+\end{figure}
+Fetch and decode instructions in parallel, but in order. This fills the instruction pool. It also executes ready
+instructions from the instructions pool, where all data sources are ready, and needed execution resources are available.
+Once an instruction is executed, we signal to all dependent instructions that the data is ready. Next, commit
+instructions in parallel, but in order, and write back results (memory, registers). OOOE is typically superscalar,
+capable of fetching, executing, and committing multiple instructions every cycle.
+
+Let us consider the following program:
+\begin{lstlisting}
+(1) lw      $1, 0($4)   ; $1 <- load[$4]
+(2) add     $8, $1, $2  ; $8 <- $1 + $2
+(3) addi    $5, $5, 1   ; $5 <- $5 + 1
+(4) sub     $6, $6, $3  ; $6 <- $6 - $3
+(5) add     $4, $5, $6  ; $4 <- $5 + $6
+(6) add     $9, $8, $4  ; $9 <- $8 + $4
+\end{lstlisting}
+So here, we have the following data flow graph:
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.3]{lecture_12_data_flow_graph}
+    \caption{Data flow graph}
+\end{figure}
+Should we run in order, then we have to first run 1 (long time), followed by 2, 3, and 4 simultaneously, and finally 5
+and 6 sequentially. However, if we use OOOE, and follow the data dependency order, we can execute 1, and then
+simultaneously 3, and 4, and then run 5 before 1 has even completed. We can then run 2, and then 6 sequentially.
+
+% TODO 21 / just explain data dependencies and false dependencies
+
+We have a problem, false dependencies limit the number of instructions that can be fed into the instruction pool for
+OOOE. We can resolve this by using \textbf{register renaming}. Here we maintain a mapping table architectural register.
+For each instruction, we perform the following steps: \begin{enumerate}
+    \item Source operands renaming: Check if source registers were mapped to physical register by a previous instruction
+        and use it
+    \item Destination operand allocation: Allocate a destination register from the pool of physical registers, and
+        update the mapping table
+\end{enumerate}
+
+So, by following these for each instruction above, we achieve:
+\begin{lstlisting}
+(1) lw      $2, 0($1)   [$2→p1]     lw      p1, 0($1)
+(2) add     $3, $2, $0  [$3→p2]     add     p2, p1, $0
+(3) addi    $1, $0, 77  [$1→p3]     addi    p3, $0, 77
+(4) add     $2, $3, $0  [$2→p4]     add     p4, p2, $0
+(5) add     $2, $1, $1  [$2→p5]     add     p5, p3, p3
+\end{lstlisting}
+Where the first column is the instructions, the middle the mapping, and the third the resultant instructions after the
+mapping.
+
+So as we can see, we have removed the false dependencies. Where earlier, both instructions 4, and 5, both wrote to the
+same register, they no longer do so.
+% subsection General scheme (end)
+
+\subsection{A superscalar OOOE Machine}\label{sub:A superscalar OOOE Machine} % (fold)
+\subsubsection{In order}\label{sec:In order} % (fold)
+Some steps still have to take place in order, but can be done making use of superscalar as discussed last week. These
+steps are: \\
+\begin{enumerate}
+    \item Fetch and decode: Fetch and decode instructions in parallel, but in order
+    \item Rename: Data dependency analysis and structuring. Here we rename sources to physical registers, and allocate a
+        physical register to the destination
+\end{enumerate}
+% subsubsection In order (end)
+
+The ROB (Reorder Buffer) is the pool of instructions fetched, and waiting for retirement. This keeps track of
+speculative instruction results before writing them to the architecture (register file or memory).
+
+\subsubsection{Out of order}\label{sec:Out of order} % (fold)
+\begin{enumerate}
+    \item Reservation Stations (RS): This is the pool of instructions waiting for execution. IT maintains per instance
+        sources, and a ready / not ready status.
+    \item Execute: We track which instructions are ready, meaning they have all sources ready. Then we dispatch ready
+        instructions to the execution ports in FIFO order. The RS handles only register dependencies, it does not handle
+        memory dependencies. After execution, we write back the value to the RS, and mark more sources as ready. The RS
+        then sends "exe done" indication to ROB, and reclaims the RS entry.
+\end{enumerate}
+% subsubsection Out of order (end)
+
+\subsubsection{In order}\label{sec:In order} % (fold)
+\begin{enumerate}
+    \item Retire (commit): Commit instructions received from ROB in parallel, but in order. Commit means writing results
+        to memory, and actual architectural registers.
+\end{enumerate}
+% subsubsection In order (end)
+% subsection A superscalar OOOE Machine (end)
+
+\subsection{Reorder Buffer (ROB)}\label{sub:Reorder Buffer (ROB)} % (fold)
+The ROB holds instructions from allocation, and until retirement. They are held in the same order as in the program
+(program execution order). It provides a large physical register space for register renaming, one physical register per
+ROB entry. \begin{itemize}
+    \item Physical register number = ROB entry number
+    \item Each instruction has only 1 destination
+    \item Buffers the execution results until retirement
+\end{itemize}
+The valid data is set after the instruction is executed, and the result is written to the physical register (i.e. to the
+ROB entry).
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.3]{lecture_12_rob_example}
+    \caption{ROB example}
+\end{figure}
+% subsection Reorder Buffer (ROB) (end)
+
+\subsection{Architectural Register File}\label{sub:Architectural Register File} % (fold)
+The ARF is also known as the Real Register File (RRF). It holds the architectural register file, where architectural
+registers are numbered. The value is an architectural register is the value written to it by the last instruction
+committed which wrote to this register: \begin{table}[h!]
+     \centering
+     \begin{tabular}{|c|c|}
+         \hline
+         \#entry & Arch Reg Data \\ \hline
+         \lstinline[columns=fixed]{o($1)} & 9AH \\ \hline
+         \lstinline[columns=fixed]{1($2)} & F34H \\ \hline
+     \end{tabular}
+     \caption{RRF}
+\end{table}
+% subsection Architectural Register File (end)
+
+\subsection{Reservation Station / Issue Queue (RS / IQ)}\label{sub:Reservation Station / Issue Queue (RS / IQ)} % (fold)
+This is the pool of all instructions that have not yet been executed. It holds an instruction's attributes, and source
+data, until it is executed, along with the instruction itself, sources, and destination (physical destination). When the
+instruction is allocated in RS, the operand values are updated.
+
+\begin{table}[h!]
+     \centering
+     \begin{tabular}{|c|c|c|}
+         \hline
+         Operand form & Data valid & Get value from \\ \hline
+         Architectural register & 1 & RRF (arch reg file) \\ \hline
+         Physical register & 1 & ROB (p\#) \\ \hline
+         Physical register & 0 & Wait for value \\ \hline
+     \end{tabular}
+     \caption{}
+\end{table}
+% TODO rest of 40, and 41
+% subsection Reservation Station / Issue Queue (RS / IQ) (end)
 % section Concepts in Out of Order Execution (OOOE) (end)
+
+\section{Instruction Fetch and branches in OOOE}\label{sec:Instruction Fetch and branches in OOOE} % (fold)
+\subsection{Fetch and branches}\label{sub:Fetch and branches} % (fold)
+OOOE fetches multiple instructions each cycle. The simplest approach is to simply fetch in program order, and ignore
+branches (i.e. predicting branches as not taken). On average, 1 of 8 instructions is a branch. So what if a branch
+happens to be taken? The fetch may have fetched the wrong instruction, and so on execution, such branch is marked as
+'mispredicted'.
+% subsection Fetch and branches (end)
+
+\subsection{Jump misprediction, flush at retire}\label{sub:Jump misprediction, flush at retire} % (fold)
+When a mispredicted jump retires, we flush the pipeline. When the jump commits, all the instructions remaining in the
+pipe are younger than the jump, and are therefore from the \textbf{wrong} path. We need to reset the renaming map, so
+all the registers are mapped to the architectural registers (RRF). This is OK, since there are no consumer of physical
+registers, since the pipe is flushed. So we start fetching instructions from the correct path.
+
+This has the disadvantage of a high misprediction penalty.
+
+So OOOE requires an accurate branch predictor. It needs to predict branches at fetch/decode time, long before they are
+executed. Misprediction causes a few cycles stall, since we need to flush and restart the pipeline, e.g. 5 cycles. Since
+there is typically a branch roughly every 8 instructions, a 4 wide OOOE will fetch 8 instructions every 2 cycles. If it
+is always wrong, a flush will take place every 9 instructions, which is 5 cycles of flush after 2 cycles of work,
+resulting in only 29\% work. If it is 50\% then we get 45\% work. For 90\% correct this is 5 cycles every 20 cycles of
+work, bringing us up to 80\% work.
+% subsection Jump misprediction, flush at retire (end)
+
+\subsection{Branch prediction}\label{sub:Branch prediction} % (fold)
+We predict using history, where the branch history is updated based on actual execution. The prediction is made before
+the instructions bytes are available. The hardware predicts the existence of branches in a group of instructions before
+they are even fetched. We need to predict taken branches location, and target, i.e. where a branch instruction exists in
+the fetched instructions, if the branch is taken or not taken, and the target of a predicted taken branch.
+
+If the prediction rate is greater than 90\%, then for an average of a branch per 5-10 instructions, we have >50-100
+instructions between mispredictions. A high prediction rate is \textbf{crucial} for OOOE, speculative execution, since
+on misprediction everything is flushed, and the effective size of the window is determined by the prediction accuracy.
+
+\subsubsection{Predicting the target}\label{sec:Predicting the target} % (fold)
+An array called the \textbf{target array} is accessed using the branch address (branch PC). This can be implemented as
+an $n$ way set associative cache. The target array predicts the following: \begin{itemize}
+    \item Instruction is a branch
+    \item Branch target
+    \item Branch type (e.g. Conditional / unconditional)
+\end{itemize}
+Since tags are usually partial, there is a trade off between space and accuracy, and we can get false hits. Multiple
+branches can be aliased to the same entry. This is not a correctness issue, but rather only performance.
+
+% subsubsection Predicting the target (end)
+
+\subsubsection{Predicting whether or not a branch is taken}\label{sec:Predicting whether or not a branch is taken} % (fold)
+We can predict whether a branch will or will not be taken based off heuristics in the program with either 1 or two bits.
+These are based off state machines, with 2 or 4 states, and work exactly as you think. Each have advantages /
+disadvantages, and certain series of branches that break them.
+% subsubsection Predicting whether or not a branch is taken (end)
+
+\subsubsection{Putting it all together}\label{sec:Putting it all together} % (fold)
+For each instruction fetched, we need to predict if it is a taken branch, and predict its target. We can predict taken
+\textbf{only} if the target is known. Next cycle PC is the first predicted taken branch, or sequential address, if no
+taken branch. If possible, we can correct on decode branch existence, and target (if taken). On correction, we flush the
+wrong instructions fetched by the in order pipeline of fetch and decode, and restart fetching on the correct
+instruction. Execution then checks the branch prediction accuracy, and retirement updates the predictors, and corrects
+(flushes) the pipeline if needed.
+% subsubsection Putting it all together (end)
+% subsection Branch prediction (end)
+
+\subsection{Modern branch predictors}\label{sub:Modern branch predictors} % (fold)
+The above branch predictor is \textbf{very} basic. Modern branch predictors are \textbf{much} more complex. Branch
+prediction is an active research field, and CBP (championship branch prediction) workshops are held, where predictor
+algorithms code are submitted on a simulator framework, and compete by simulating predictors on real workloads that are
+not known in advance. Progress and improvements are being implemented in modern CPUs.
+% subsection Modern branch predictors (end)
+% section Instruction Fetch and branches in OOOE (end)
+
+\section{Spectre background}\label{sec:Spectre background} % (fold)
+\subsection{Background}\label{sub:Background} % (fold)
+This is a class of security vulnerabilities that affect modern CPUs that perform branch prediction, and other forms of
+speculation. Speculative execution resulting from a branch misprediction may leave observable side effects, that may
+reveal private data to attackers. There are lots of different variants, and we will probably only discuss variant 1
+here. The public vulnerability name of variant one is the Bounds Check Bypass (BCB).
+% subsection Background (end)
+
+\subsection{Cache side channel attacks}\label{sub:Cache side channel attacks} % (fold)
+Secrets can be inferred by filling up a cache, and then getting the OS to load the secret into the cache. By
+establishing which of my blocks in the cache were emptied, I can infer information about the secret, based off the
+mapping function that mapped it into the cache..
+% subsection Cache side channel attacks (end)
+
+\subsection{BCB overview}\label{sub:BCB overview} % (fold)
+Consider the OS function \lstinline[columns=fixed]{foo}:
+\begin{lstlisting}
+foo(int j) {
+    if (j >= 0 && j < MAX_ALLOWED) {
+        char x = os_table[j];
+        int y = os_table2[x * 64];
+        ...
+    } else {
+        return ERROR;
+    }
+}
+\end{lstlisting}
+The attacker trains the branch predictor by invoking a function \lstinline[columns=fixed]{foo} with a valid input
+\lstinline[columns=fixed]{j} many times. The attacker fools \lstinline[columns=fixed]{foo} to access the secret by
+invoding it with \lstinline[columns=fixed]{j = secret_address - os_table}. \lstinline[columns=fixed]{j} is out of
+bounds, but the predictor still predicts based off the history that it is OK, and so \lstinline[columns=fixed]{foo}
+speculatively accesses the secret. The attacker can then use a cache side channel attack to infer the secret value.
+% subsection BCB overview (end)
+
+% section Spectre background (end)
 
 
 \end{document}
