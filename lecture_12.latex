@@ -1,0 +1,152 @@
+\documentclass{article}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{mathtools}
+\usepackage{blindtext}
+\usepackage{multicol}
+\usepackage{xcolor}
+\usepackage{lmodern}
+\usepackage{graphicx}
+\usepackage{placeins}
+\usepackage{algpseudocode}
+\usepackage{algorithm}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage[bookmarks=true]{hyperref}
+\usepackage{bookmark}
+\usepackage{bbm}
+\usepackage{listings}
+\usepackage{wrapfig}
+\graphicspath{ {./images/} }
+\usepackage[bottom=0.5cm, right=1.5cm, left=1.5cm, top=1.5cm]{geometry}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{exercise}{Exercise}
+\newtheorem{example}{Example}
+\newtheorem{definition}{Definition}[section]
+
+\newcommand{\R}{\ensuremath{\mathbb{R}}}
+\newcommand{\N}{\ensuremath{\mathbb{N}}}
+\newcommand{\Z}{\ensuremath{\mathbb{Z}}}
+\newcommand{\p}{\ensuremath{\mathbb{P}}}
+\newcommand{\E}{\ensuremath{\mathbb{E}}}
+\newcommand{\F}{\ensuremath{\mathcal{F}}}
+\newcommand{\1}{\ensuremath{\mathbbm{1}}}
+\newcommand{\B}{\ensuremath{\mathbbm{B}}}
+
+\title{Lecture 12 - Speeding up Single Threaded using OOOE}
+\author{Gidon Rosalki}
+\date{2025-06-22}
+
+
+\begin{document}
+\maketitle
+\begingroup
+\centering
+{\color{red}\bfseries\LARGE This content will not appear in the exam this year! \par}
+\endgroup
+
+\vspace{1cm}  % Add space before the rest of the content
+\section{Speeding up Single Threading}\label{sec:Speeding up Single Threading} % (fold)
+Our goal is to minimise the CPU time: \[
+    \text{CPU time}  = \text{clock cycle time} \cdot \text{CPI} \cdot \text{IC}
+\]
+We can minimise the clock cycle time by adding more pipe stages, minimise the CPI by using pipeline, super scalar, and
+minimise the IC with loop unrolling, or modifying the architecture (e.g. adding new instructions).
+
+The CPI in a pipelined CPU, without hazards is simply 1, but with hazards is greater than 1. So what more can we do?
+
+Well, as discussed last week, we can do $n$-way superscalar, where our CPU runs $n$ instructions together, if they are
+independent of each other. We can statically (in the compiler) schedule instructions to reduce dependencies, and this can
+also be done dynamically by the CPU (e.g. OOOE later).
+
+A few years ago, back in 2019  2020 we had CPUs that could fetch up to 5 instructions simultaneously, and execute up to
+10 instructions simultaneously. However, programs are serial, and many instructions depend on each other. Therefore, how
+can so many instructions be executed simultaneously? Additionally, how can more instructions be executed than fetched?
+
+Let us consider the following C code:
+\begin{lstlisting}
+for (int i = 0; i < N; i++) {
+    A[i] = A[i] + 1;
+}
+\end{lstlisting}
+
+This translates into the following MIPS 32b assembly (ints are 4 bytes)
+\begin{lstlisting}
+LOOP:   lw      $t1, 0($a0)
+        addi    $t2, $t1, 1
+        sw      $t2, 0($a0)
+        addi    $a0, $a0, 4
+        addi    $a1, $a1, -1
+        bne     $a1, $0, LOOP
+\end{lstlisting}
+If we are executing the program, using an unlimited umber of execution units, we can see that we can execute up to 3
+instructions per cycle, with 1.5 instructions per cycle on average. This results in 4 cycles per iteration. Is this the
+best we can do? What if we could execute, as soon as the data is available, instead of the program order? Let us track
+the data dependency:
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.3]{lecture_12_data_dependency}
+    \caption{Data dependency tracking graph}
+\end{figure}
+This way, we can see that we can use up to 6 instructions together. Assuming N is larger, this is roughly 6 instructions
+per cycle on average, and roughly 1 iteration each cycle on average. However, execution is not in program order, what
+about branches?
+
+To increase the performance, and be able to utilise more execution units, we \textbf{execute based on data dependency}
+instead of based only on the program order. This is called \textbf{Out of Order Execution}.
+
+\subsection{What about memory access latency}\label{sub:What about memory access latency} % (fold)
+Let us consider a CPU, such that \begin{table}[h!]
+     \centering
+     \begin{tabular}{|c|c|c|c|}
+         \hline
+          & Size & Latency & Latency (clocks @ 4.8GHz) \\ \hline
+         L1 cache (data)  & 32KB & 0.8ns & 4 \\ \hline
+         L2 cache & 256KB & 2.5ns & 12 \\ \hline
+         L3 cache & 8MB & 9.3ns & 45 \\ \hline
+         Memory & GBs & 36.9ns & ~180 \\ \hline
+     \end{tabular}
+     \caption{}
+\end{table}
+So, assuming the following characteristics for some program: \begin{itemize}
+    \item 50\% arithmetic / logic, 30\% ld / st, and 20\% control
+    \item 10\% of data memory operations miss with a 20 cycle miss penalty
+    \item 2\% of instructions miss instructions cache with a 20 cycle miss penalty
+    \item Ideal CPI is CPI with no cache misses
+\end{itemize}
+So, since the PCI is the ideal CPI + average stalls per instruction, and our average stall per instruction is \[
+    30\% \cdot 10\% \cdot 20 + 2\% \cdot 20 = 1
+\]
+Resulting in \begin{table}[h!]
+     \centering
+     \begin{tabular}{|c|c|c|c|}
+         \hline
+          & Ideal CPI (no misses) & CPI (with cache misses) & \% time spent waiting for misses (stalling) \\ \hline
+         Pipelined single issue & 1.1 & 1.1 + 1 = 2.1 & 48\% \\ \hline
+         Superscalar dual issue & 0.7 & 0.7 + 1 = 1.7 & 59\% \\ \hline
+     \end{tabular}
+     \caption{}
+\end{table}
+So as we see, most of the time is spent stalling on cache misses, and as the CPU gets faster, a higher percent of the
+time is spent on stalls. So as we can see, there are many problems with program order execution, which brings us neatly
+into why we want OOOE.
+
+% subsection What about memory access latency (end)
+
+% section Speeding up Single Threading (end)
+
+\section{Concepts in Out of Order Execution (OOOE)}\label{sec:Concepts in Out of Order Execution (OOOE)} % (fold)
+Modern CPUs execute instructions out of order to increase performance. This means that instructions are executed in an
+order, not necessarily the same as the order specified by the program. However, program semantics are maintained (so the
+results are equivalent to in order execution). This method was proposed by Tomasulo in 1967. It is required for
+efficient use of multiple execution units, it improves the ILP (Instruction Level Parallelism, the ability to run
+instructions in parallel), and is required for performance for general purpose code, since it better utilises multiple execution
+units, and ensures execution when waiting for results (e.g. handling cache misses). However, building an OOOE CPU
+requires complex hardware, since we need to rename registers, reorder results, and have the CPU speculate instructions
+while also handling instances where it speculated incorrectly.
+% section Concepts in Out of Order Execution (OOOE) (end)
+
+
+\end{document}
