@@ -119,7 +119,7 @@ To increase the performance, and be able to utilise more execution units, we \te
 instead of based only on the program order. This is called \textbf{Out of Order Execution}.
 
 \subsection{What about memory access latency}\label{sub:What about memory access latency} % (fold)
-Let us consider a CPU, such that \begin{table}[h!]
+Let us consider a CPU, such that \begin{table}[H]
      \centering
      \begin{tabular}{|c|c|c|c|}
          \hline
@@ -140,7 +140,7 @@ So, assuming the following characteristics for some program: \begin{itemize}
 So, since the PCI is the ideal CPI + average stalls per instruction, and our average stall per instruction is \[
     30\% \cdot 10\% \cdot 20 + 2\% \cdot 20 = 1
 \]
-Resulting in \begin{table}[h!]
+Resulting in \begin{table}[H]
      \centering
      \begin{tabular}{|c|c|c|c|}
          \hline
@@ -278,7 +278,7 @@ ROB entry).
 \subsection{Architectural Register File}\label{sub:Architectural Register File} % (fold)
 The ARF is also known as the Real Register File (RRF). It holds the architectural register file, where architectural
 registers are numbered. The value is an architectural register is the value written to it by the last instruction
-committed which wrote to this register: \begin{table}[h!]
+committed which wrote to this register: \begin{table}[H]
      \centering
      \begin{tabular}{|c|c|}
          \hline
@@ -295,7 +295,7 @@ This is the pool of all instructions that have not yet been executed. It holds a
 data, until it is executed, along with the instruction itself, sources, and destination (physical destination). When the
 instruction is allocated in RS, the operand values are updated.
 
-\begin{table}[h!]
+\begin{table}[H]
      \centering
      \begin{tabular}{|c|c|c|}
          \hline
