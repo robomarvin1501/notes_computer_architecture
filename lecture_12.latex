@@ -283,8 +283,8 @@ committed which wrote to this register: \begin{table}[H]
      \begin{tabular}{|c|c|}
          \hline
          \#entry & Arch Reg Data \\ \hline
-         \lstinline[columns=fixed]{o($1)} & 9AH \\ \hline
-         \lstinline[columns=fixed]{1($2)} & F34H \\ \hline
+         o(\$1) & 9AH \\ \hline
+         1(\$2) & F34H \\ \hline
      \end{tabular}
      \caption{RRF}
 \end{table}
